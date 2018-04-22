@@ -150,16 +150,104 @@ int cjoin(int tid)
 {
 
 }*/
-/*
+
 int csuspend(int tid)
 {
+    if(FirstFila2(&fila_exec) != 0) { // se fila de executando vazia, mostrar erro
+        printf("\nERRO: Fila de execução vazia. Nao foi possivel verificar se thread tentou se auto-suspender.");
+        return -1
+    }
+    else { // fila de execução não vazia
+        TCB_t *thread_exec = GetAtIteratorFila2(&fila_exec); // salva thread executando
+        if(thread_exec->tid == tid) { // se thread executando pediu para se auto-suspender
+            printf("\nERRO: Nao eh possivel uma thread se auto-suspender.");
+            return -1;
+        }
+        else { // se não foi tentativa de se auto-suspender
+            // procurar na fila de aptos
+            if(FirstFila2(&fila_apto) == 0) { // se fila de aptos não estiver vazia
+                TCB_t *thread;
+                do {
+                    thread = GetAtIteratorFila2(&fila_apto); // salva thread apontada pelo iterador atual
+                    if(thread->tid == tid) { // se a thread salva tem id igual ao tid passado como parâmetro, encontrou a thread que deve ser suspensa
+                        thread->state = PROCST_APTO_SUS; // muda status para apto_suspenso
+                        AppendFila2(&fila_apto_susp, (void *) thread); // insere thread na fila de apto_suspenso
+                        DeleteAtIteratorFila2(&fila_apto); // remove thread da fila de apto
+                        return 0;
+                    }
 
-}*/
-/*
+                } while (NextFila2(&fila_apto) == 0); // procura na fila de apto enquanto próximo elemento não for final da fila
+            }
+
+            // se não encontrou thread na fila de aptos, procura na fila de bloqueados
+            if(FirstFila2(&fila_bloq) == 0) { // se fila de bloqueados não estiver vazia
+                TCB_t *thread;
+                do {
+                    thread = GetAtIteratorFila2(&fila_bloq); // salva thread apontada pelo iterador atual
+                    if(thread->tid == tid) { // se a thread salva tem id igual ao tid passado como parâmetro
+                        thread->state = PROCST_BLOQ_SUS; // muda status para bloqueado_suspenso
+                        AppendFila2(&fila_bloq_susp, (void *) thread); // insere thread na fila de bloqueado_suspenso
+                        DeleteAtIteratorFila2(&fila_bloq); // remove thread da fila de bloqueado
+                        return 0;
+                    }
+                } while (NextFila2(&fila_bloq) == 0); // procura na fila de bloqueado enquanto próximo elemento não for final da fila
+            }
+
+            //se também não encontrou na fila de bloqueado, ou thread não existe ou não estava em apto ou bloqueado
+            printf("\nERRO: Thread ID inválido ou thread não se passivel de suspensao.");
+            return -1;
+        }
+    }
+}
+
 int cresume(int tid)
 {
+    if(FirstFila2(&fila_exec) != 0) { // se fila de executando vazia, mostrar erro
+        printf("\nERRO: Fila de execução vazia. Nao foi possivel verificar se thread tentou se auto-resumir.");
+        return -1
+    }
+    else { // fila de execução não vazia
+        TCB_t *thread_exec = GetAtIteratorFila2(&fila_exec); // salva thread executando
+        if(thread_exec->tid == tid) { // se thread executando pediu para se auto-resumir
+            printf("\nERRO: Nao eh possivel uma thread se auto-resumir.");
+            return -1;
+        }
+        else { // se não foi tentativa de se auto-resumir
+            // procurar na fila de aptos_suspensos
+            if(FirstFila2(&fila_apto_susp) == 0) { // se fila de aptos_suspensos não estiver vazia
+                TCB_t *thread;
+                do {
+                    thread = GetAtIteratorFila2(&fila_apto_susp); // salva thread apontada pelo iterador atual
+                    if(thread->tid == tid) { // se a thread salva tem id igual ao tid passado como parâmetro, encontrou a thread que deve ser resumida
+                        thread->state = PROCST_APTO; // muda status para apto
+                        AppendFila2(&fila_apto, (void *) thread); // insere thread na fila de apto
+                        DeleteAtIteratorFila2(&fila_apto_susp); // remove thread da fila de apto_suspenso
+                        return 0;
+                    }
 
-}*/
+                } while (NextFila2(&fila_apto_susp) == 0); // procura na fila de apto_suspenso enquanto próximo elemento não for final da fila
+            }
+
+            // se não encontrou thread na fila de aptos_suspensos, procura na fila de bloqueados_suspensos
+            if(FirstFila2(&fila_bloq_susp) == 0) { // se fila de bloqueados_suspensos não estiver vazia
+                TCB_t *thread;
+                do {
+                    thread = GetAtIteratorFila2(&fila_bloq_susp); // salva thread apontada pelo iterador atual
+                    if(thread->tid == tid) { // se a thread salva tem id igual ao tid passado como parâmetro, encontrou thread que deve ser resumida
+                        thread->state = PROCST_BLOQ; // muda status para bloqueado
+                        AppendFila2(&fila_bloq, (void *) thread); // insere thread na fila de bloqueado
+                        DeleteAtIteratorFila2(&fila_bloq_susp); // remove thread da fila de bloqueado_suspenso
+                        return 0;
+                    }
+                } while (NextFila2(&fila_bloq_susp) == 0); // procura na fila de bloqueado_suspenso enquanto próximo elemento não for final da fila
+            }
+
+            //se também não encontrou na fila de bloqueado_suspenso, ou thread não existe ou não estava suspensa
+            printf("\nERRO: Thread ID inválido ou thread não se encontra suspensa.");
+            return -1;
+        }
+    }
+}
 
 int csem_init(csem_t *sem, int count)
 {
