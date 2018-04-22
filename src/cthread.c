@@ -22,7 +22,7 @@ Maicon Vieira - 242275
 #include <string.h>
 
 int first_time_running = 1; // indica se é a primeira vez criando uma thread. Se sim, é preciso inicializar variáveis de fila e escalonador
-int next_thread_id = 0; // indica qual o thread_id da próxima thread a ser criada (valor é incrementado a cada thread criada com sucesso)
+int next_thread_id = 1; // indica qual o thread_id da próxima thread a ser criada (valor é incrementado a cada thread criada com sucesso)
 int thread_priority = 0; // deve ser sempre 0, como especificado na definição do trabalho
 
 ucontext_t escalonador;
@@ -53,7 +53,7 @@ void init_scheduler()
 
         // cria a thread main
         TCB_t *thread_main = malloc(sizeof(TCB_t));
-        thread_main->tid = next_thread_id; // como a thread main é sempre a primeira a ser criada, seu thread_id será sempre 0
+        thread_main->tid = 0; // como a thread main é sempre a primeira a ser criada, seu thread_id será sempre 0
         thread_main->state = PROCST_EXEC; // começa executando, demais threads começam na fila de aptos
         thread_main->prio = thread_priority;
 
