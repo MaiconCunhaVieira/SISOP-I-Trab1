@@ -81,7 +81,7 @@ void init_scheduler()
         escalonador.uc_stack.ss_sp = malloc(sizeof(SIGSTKSZ)); // ss_sp é o ponteiro da pilha
         escalonador.uc_stack.ss_size = SIGSTKSZ; // ss_size é o tamanho da pilha // SIGSTKSZ: Default size in bytes for the alternate signal stack (de acordo com signal.h)
         //escalonador.uc_context.ss_flags = ??; // ss_flags são flags da pilha (talvez desnecessário)
-        makecontext(&escalonador, (void (*) (void)) dispatcher, arg); // argumentos talvez incorretos (start? (talvez dispatcher), arg? (talvez 0))
+        makecontext(&escalonador, (void (*) (void)) dispatcher, 0); // argumentos talvez incorretos (start? (talvez dispatcher), arg? (talvez 0))
 
         // cria a thread main
         TCB_t *thread_main = malloc(sizeof(TCB_t));
@@ -127,6 +127,7 @@ int ccreate (void *(*start)(void *), void *arg, int prio)
     new_thread->tid = next_thread_id;
     new_thread->state = PROCST_CRIACAO; // thread começa no estado de criação
     new_thread->prio = thread_priority; // sempre 0
+    new_thread->waitingThreadID = -1;
 
     // inicializa contexto da nova thread
     if(getcontext(&new_thread->context) == 0) { // se inicializou corretamente
@@ -137,7 +138,7 @@ int ccreate (void *(*start)(void *), void *arg, int prio)
         new_thread->context.uc_stack.ss_sp = malloc(sizeof(SIGSTKSZ)); // ss_sp é o ponteiro da pilha
         new_thread->context.uc_stack.ss_size = SIGSTKSZ; // ss_size é o tamanho da pilha // SIGSTKSZ: Default size in bytes for the alternate signal stack (de acordo com signal.h)
         //new_thread->context.uc_context.ss_flags = ??; // ss_flags são flags da pilha (talvez desnecessário)
-        makecontext(&new_thread->context, (void (*) (void)) start, arg); // argumentos talvez incorretos
+        makecontext(&new_thread->context, (void (*) (void)) start, 1, arg); // argumentos talvez incorretos
 
         // insere thread na fila de aptos
         if(AppendFila2(&fila_apto, (void *) new_thread) == 0) { // se inseriu corretamente
@@ -166,7 +167,7 @@ int cyield(void)
             yield_thread->state = PROCST_APTO; // muda seu estado para apto
             DeleteAtIteratorFila2(&fila_exec); // remove-a da fila de execução
             thread_exec_finished = 0;
-            swapcontext(&thread->context, &escalonador);
+            swapcontext(&yield_thread->context, &escalonador);
             return 0;
         }
         else { // se não foi possível inserir na fila de aptos, mostra erro
@@ -182,14 +183,99 @@ int cyield(void)
 
 int cjoin(int tid)
 {
+    if(first_time_running) {
+        init_scheduler();
+    }
 
+    int found_thread = 0;
+
+    if(FirstFila2(&fila_exec) == 0) { // se fila de execução não estiver vazia
+        TCB_t *thread = GetAtIteratorFila2(&fila_exec); // salva thread da fila de execução
+        if(thread->tid != tid) { // se não é um auto-cjoin
+            // procura nas quatro filas se thread existe (thread ainda não terminou execução)
+            if(FirstFila2(&fila_apto) == 0) {
+                TCB_t *thread_apto;
+                do {
+                    thread_apto = GetAtIteratorFila2(&fila_apto);
+                    if(thread_apto->tid == tid)
+                        found_thread = 1;
+                } while(NextFila2(&fila_apto) == 0);
+            }
+
+            if(FirstFila2(&fila_apto_susp) == 0) {
+                TCB_t *thread_apto_susp;
+                do {
+                    thread_apto_susp = GetAtIteratorFila2(&fila_apto_susp);
+                    if(thread_apto_susp->tid == tid)
+                        found_thread = 1;
+                } while(NextFila2(&fila_apto_susp) == 0);
+            }
+
+            if(FirstFila2(&fila_bloq) == 0) {
+                TCB_t *thread_bloq;
+                do {
+                    thread_bloq = GetAtIteratorFila2(&fila_bloq);
+                    if(thread_bloq->tid == tid)
+                        found_thread = 1;
+                } while(NextFila2(&fila_bloq) == 0);
+            }
+
+            if(FirstFila2(&fila_bloq_susp) == 0) {
+                TCB_t *thread_bloq_susp;
+                do {
+                    thread_bloq_susp = GetAtIteratorFila2(&fila_bloq_susp);
+                    if(thread_bloq_susp->tid == tid)
+                        found_thread = 1;
+                } while(NextFila2(&fila_bloq_susp) == 0);
+            }
+
+            if(found_thread) {
+                // procura na fila de bloqueado se existe alguma thread esperando por tid
+                if(FirstFila2(&fila_bloq) == 0) { // se fila de bloqueados não estiver vazia
+                    TCB_t *thread_bloq;
+                    do {
+                        thread_bloq = GetAtIteratorFila2(&fila_bloq); // salva thread da fila de bloqueado
+                        if(thread_bloq->waitingThreadID == tid) { // se a thread em bloq está esperando a thread tid
+                            printf("\nERRO: Ja existe thread na fila de bloqueado esperando por essa thread.");
+                            return -1;
+                        }
+                    } while(NextFila2(&fila_bloq) == 0); // procura na fila de bloqueado enquanto próximo elem. não for final da fila
+                }
+
+                // procura na fila de bloqueado suspenso se existe alguma thread esperando por tid
+                if(FirstFila2(&fila_bloq_susp) == 0) { // se bloqueado suspenso não vazio
+                    TCB_t *thread_bloq_susp;
+                    do {
+                        thread_bloq_susp = GetAtIteratorFila2(&fila_bloq_susp); // salva thread de bloq suspenso
+                        if(thread_bloq_susp->waitingThreadID == tid) { // se a thread em bloq susp está esperando por tid
+                            printf("\nERRO: Ja existe thread na fila de bloqueado suspenso esperando por essa thread");
+                            return -1;
+                        }
+                    } while(NextFila2(&fila_bloq_susp) == 0); // procura na fila de bloqueado suspenso enquanto próximo elem não for final da fila
+                }
+
+                // como não encontrou na fila de bloqueado e bloqueado suspenso uma thread que já espera por tid, cjoin pode ocorrer
+                thread->state = PROCST_BLOQ;
+                AppendFila2(&fila_bloq, (void *) thread);
+                DeleteAtIteratorFila2(&fila_exec);
+                thread->waitingThreadID = tid;
+                thread_exec_finished = 0;
+                swapcontext(&thread->context, &escalonador);
+                return 0;
+            }
+            else {
+                printf("\nERRO: Thread ID invalido ou thread ja terminou execucao.");
+                return -1;
+            }
+        }
+    }
 }
 
 int csuspend(int tid)
 {
     if(FirstFila2(&fila_exec) != 0) { // se fila de executando vazia, mostrar erro
         printf("\nERRO: Fila de execução vazia. Nao foi possivel verificar se thread tentou se auto-suspender.");
-        return -1
+        return -1;
     }
     else { // fila de execução não vazia
         TCB_t *thread_exec = GetAtIteratorFila2(&fila_exec); // salva thread executando
@@ -228,7 +314,7 @@ int csuspend(int tid)
             }
 
             //se também não encontrou na fila de bloqueado, ou thread não existe ou não estava em apto ou bloqueado
-            printf("\nERRO: Thread ID inválido ou thread não se passivel de suspensao.");
+            printf("\nERRO: Thread ID inválido ou thread não eh passivel de suspensao.");
             return -1;
         }
     }
@@ -238,7 +324,7 @@ int cresume(int tid)
 {
     if(FirstFila2(&fila_exec) != 0) { // se fila de executando vazia, mostrar erro
         printf("\nERRO: Fila de execução vazia. Nao foi possivel verificar se thread tentou se auto-resumir.");
-        return -1
+        return -1;
     }
     else { // fila de execução não vazia
         TCB_t *thread_exec = GetAtIteratorFila2(&fila_exec); // salva thread executando
@@ -334,6 +420,7 @@ int csignal(csem_t *sem)
             thread = GetAtIteratorFila2(&fila_bloq); // salva thread da fila de bloqueado
             if(thread_sem->tid == thread->tid) { // se é a mesma thread
                 thread->state = PROCST_APTO; // muda estado para apto
+                thread->waitingThreadID = -1;
                 AppendFila2(&fila_apto, (void *) thread); // insere thread na fila de apto
                 DeleteAtIteratorFila2(&fila_bloq); // remove thread da fila de bloqueado
                 DeleteAtIteratorFila2(sem->fila); // remove thread da fila do semáforo
@@ -345,12 +432,13 @@ int csignal(csem_t *sem)
             thread = GetAtIteratorFila2(&fila_bloq_susp);
             if(thread_sem->tid == thread->tid) { // se é a mesma thread
                 thread->state = PROCST_APTO_SUS; // muda estado para apto_suspenso
+                thread->waitingThreadID = -1;
                 AppendFila2(&fila_apto_susp, (void *) thread); // insere thread na fila de apto_suspenso
                 DeleteAtIteratorFila2(&fila_bloq_susp); // remove thread da fila de bloqueado_suspenso
                 DeleteAtIteratorFila2(sem->fila); // remove thread da fila do semáforo
                 return 0;
             }
-        }
+        } while(NextFila2(&fila_bloq_susp) == 0); // procura na fila de bloqueado suspenso enquanto próximo elemento não for final da fila
     }
     else { // se fila do semáforo estiver vazia
         printf("\nERRO: Fila do semaforo esta vazia.");
