@@ -66,7 +66,7 @@ void dispatcher()
                 TCB_t *thread_bloq_susp;
                 do {
                     thread_bloq_susp = GetAtIteratorFila2(&fila_bloq_susp);
-                    if(thread_bloq_susp->waitingThreadID == thread) { // se thread em fila de bloqueado suspenso esperada thread terminada, passa para fila de apto suspenso
+                    if(thread_bloq_susp->waitingThreadID == thread->tid) { // se thread em fila de bloqueado suspenso esperada thread terminada, passa para fila de apto suspenso
                         thread_bloq_susp->state = PROCST_APTO_SUS;
                         AppendFila2(&fila_apto_susp, (void *) thread_bloq_susp);
                         DeleteAtIteratorFila2(&fila_bloq_susp);
@@ -293,6 +293,14 @@ int cjoin(int tid)//funcao de outro trabalho, adaptar variaveis
                 return -1;
             }
         }
+        else {
+            printf("\nERRO: Nao eh possivel um thread fazer auto-join");
+            return -1;
+        }
+    }
+    else {
+        printf("\nERRO: Fila de execucao vazia.");
+        return -1;
     }
 }
 
@@ -439,7 +447,7 @@ int csignal(csem_t *sem)
 {
     sem->count++; // incrementa a cada chamada da csignal
     if(FirstFila2(sem->fila) == 0) { // se fila do semaforo nao estiver vazia, seta iterador para primeiro elemento da fila
-        TCB_t *thread_sem = GetAtIteratorFila2(sem->fila); // salva thread da fila do semï¿½foro
+        TCB_t *thread_sem = GetAtIteratorFila2(sem->fila); // salva thread da fila do semaforo
         TCB_t *thread;
         do { // comeca a procurar thread na fila de bloqueado
             thread = GetAtIteratorFila2(&fila_bloq); // salva thread da fila de bloqueado
@@ -448,7 +456,7 @@ int csignal(csem_t *sem)
                 thread->waitingThreadID = -1;
                 AppendFila2(&fila_apto, (void *) thread); // insere thread na fila de apto
                 DeleteAtIteratorFila2(&fila_bloq); // remove thread da fila de bloqueado
-                DeleteAtIteratorFila2(sem->fila); // remove thread da fila do semï¿½foro
+                DeleteAtIteratorFila2(sem->fila); // remove thread da fila do semaforo
                 return 0;
             }
         } while(NextFila2(&fila_bloq) == 0); // procura na fila de bloqueado enquanto proximo elemento nao for final da fila
@@ -464,6 +472,9 @@ int csignal(csem_t *sem)
                 return 0;
             }
         } while(NextFila2(&fila_bloq_susp) == 0); // procura na fila de bloqueado suspenso enquanto próximo elemento não for final da fila
+
+        printf("\nERRO: Thread não encontrada.");
+        return -1;
     }
     else { // se fila do semaforo estiver vazia
         printf("\nERRO: Fila do semaforo esta vazia.");
