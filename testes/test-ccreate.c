@@ -16,7 +16,7 @@ void second_func()
     printf("\nSou a segunda funcao a ser chamada!");
 }
 
-int third_func()
+void third_func()
 {
     printf("\nSou a terceira e ultima funcao a ser chamada!");
 }
