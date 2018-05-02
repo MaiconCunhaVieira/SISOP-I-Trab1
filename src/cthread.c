@@ -122,7 +122,7 @@ void init_scheduler()
         first_time_running = 0;
     }
     else {
-        printf("\nERRO: Falha ao criar as filas de apto, executando e bloqueado.");
+        printf("\nERRO: Falha ao criar as filas de executando, apto, apto suspenso, bloqueado e bloqueado suspenso.");
     }
 }
 
