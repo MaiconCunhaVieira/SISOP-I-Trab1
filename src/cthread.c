@@ -102,11 +102,11 @@ void init_scheduler()
         // inicializa escalonador
         getcontext(&escalonador);
         escalonador.uc_link = 0; // uc_link eh um ponteiro para o contexto que vai ser executado quando este contexto
-        //escalonador.uc_sigmask = ??; // uc_sigmask eh o conjunto de sinais que estao bloqueados quando este contexto esta ativado (talvez desnecessario)
+        //escalonador.uc_sigmask = ??; // uc_sigmask eh o conjunto de sinais que estao bloqueados quando este contexto esta ativado
         escalonador.uc_stack.ss_sp = malloc(sizeof(SIGSTKSZ)); // ss_sp é o ponteiro da pilha
         escalonador.uc_stack.ss_size = SIGSTKSZ; // ss_size eh o tamanho da pilha // SIGSTKSZ: Default size in bytes for the alternate signal stack (de acordo com signal.h)
-        //escalonador.uc_context.ss_flags = ??; // ss_flags são flags da pilha (talvez desnecessario)
-        makecontext(&escalonador, (void (*) (void)) dispatcher, 0); // argumentos talvez incorretos
+        //escalonador.uc_context.ss_flags = ??; // ss_flags são flags da pilha
+        makecontext(&escalonador, (void (*) (void)) dispatcher, 0);
 
         // cria a thread main
         TCB_t *thread_main = malloc(sizeof(TCB_t));
@@ -150,7 +150,7 @@ int ccreate (void *(*start)(void *), void *arg, int prio)
     //cria a nova thread
     TCB_t *new_thread = malloc(sizeof(TCB_t));
     new_thread->tid = next_thread_id;
-    new_thread->state = PROCST_CRIACAO; // thread comeï¿½a no estado de criaï¿½ï¿½o
+    new_thread->state = PROCST_CRIACAO; // thread comeï¿½a no estado de criacao
     new_thread->prio = thread_priority; // sempre 0
     new_thread->waitingThreadID = -1;
 
@@ -159,11 +159,11 @@ int ccreate (void *(*start)(void *), void *arg, int prio)
 
         // inicializa campos do contexto
         new_thread->context.uc_link = &escalonador; // uc_link é um ponteiro para o contexto que vai ser executado quando este contexto retornar
-        //new_thread->context.uc_sigmask = ??; // uc_sigmask é o conjunto de sinais que estão bloqueados quando este contexte está ativado (talvez desnecessário)
+        //new_thread->context.uc_sigmask = ??; // uc_sigmask é o conjunto de sinais que estão bloqueados quando este contexte está ativado
         new_thread->context.uc_stack.ss_sp = malloc(sizeof(SIGSTKSZ)); // ss_sp é o ponteiro da pilha
         new_thread->context.uc_stack.ss_size = SIGSTKSZ; // ss_size é o tamanho da pilha // SIGSTKSZ: Default size in bytes for the alternate signal stack (de acordo com signal.h)
-        //new_thread->context.uc_context.ss_flags = ??; // ss_flags são flags da pilha (talvez desnecessário)
-        makecontext(&new_thread->context, (void (*) (void)) start, 1, arg); // argumentos talvez incorretos
+        //new_thread->context.uc_context.ss_flags = ??; // ss_flags são flags da pilha
+        makecontext(&new_thread->context, (void (*) (void)) start, 1, arg);
 
         // insere thread na fila de aptos
         if(AppendFila2(&fila_apto, (void *) new_thread) == 0) { // se inseriu corretamente
@@ -206,7 +206,7 @@ int cyield(void)
     }
 }
 
-int cjoin(int tid)//funcao de outro trabalho, adaptar variaveis
+int cjoin(int tid)
 {
     if(first_time_running) {
         init_scheduler();
